@@ -41,6 +41,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---- YouTube cookie file (works around YouTube blocking our server) ----
+// spotdl sources actual audio from YouTube under the hood. YouTube is much
+// more aggressive about blocking anonymous/datacenter requests (like our
+// Render server) than requests that look like a real signed-in browser.
+// The fix: give spotdl a `cookies.txt` exported from a real, logged-in
+// YouTube session, and it'll send requests that look like that browser.
+//
+// On Render this file is uploaded as a "Secret File", which Render mounts
+// at /etc/secrets/<filename> — never committed to git, never in our repo.
+// Locally, this path just won't exist, so we skip the flag entirely and
+// spotdl runs exactly as it did before (may just be more likely to get
+// blocked, same as we saw in testing).
+const COOKIE_FILE_PATH = process.env.YTDLP_COOKIE_FILE || '/etc/secrets/cookies.txt';
+const hasCookieFile = fs.existsSync(COOKIE_FILE_PATH);
+
+if (!hasCookieFile) {
+  console.warn(`[!] No YouTube cookie file found at ${COOKIE_FILE_PATH} — spotdl downloads may get blocked by YouTube's bot detection.`);
+}
+
 // Global database in memory to track active downloads.
 // "In memory" means this object lives in RAM only — it resets to empty
 // every time the server restarts (a deploy, a crash, a free-tier host
@@ -76,6 +95,17 @@ app.get('/download', (req, res) => {
 
     console.log(`\n[+] [Session ${sessionId}] Background download started...`);
 
+    // Only add the --cookie-file flag when we actually have a cookie file
+    // (see the hasCookieFile setup near the top of this file). Building the
+    // command as an array of pieces and `.filter(Boolean).join(' ')`-ing it
+    // means the flag just quietly disappears when there's nothing to add,
+    // instead of us having to juggle two near-duplicate command strings.
+    const spotdlCommand = [
+      'spotdl',
+      `"${spotifyUrl}"`,
+      hasCookieFile ? `--cookie-file "${COOKIE_FILE_PATH}"` : null,
+    ].filter(Boolean).join(' ');
+
     // `exec` runs a shell command — here, the actual `spotdl` CLI tool —
     // as if we'd typed it into a terminal ourselves, with `cwd: tempDir`
     // meaning "run it as if we're standing inside this session's temp
@@ -89,7 +119,7 @@ app.get('/download', (req, res) => {
     // e.g. it couldn't find/download a match for the track — we had zero
     // record of why. Logging both here means the next failure tells us
     // something instead of just silently flipping to 'failed'.
-    exec(`spotdl "${spotifyUrl}"`, { cwd: tempDir }, (error, stdout, stderr) => {
+    exec(spotdlCommand, { cwd: tempDir }, (error, stdout, stderr) => {
         if (error) {
             console.error(`[-] [Session ${sessionId}] spotDL Error: ${error.message}`);
             if (stdout) console.error(`[-] [Session ${sessionId}] spotdl stdout:\n${stdout}`);
