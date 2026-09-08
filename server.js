@@ -81,9 +81,19 @@ app.get('/download', (req, res) => {
     // meaning "run it as if we're standing inside this session's temp
     // folder", so whatever file spotdl produces lands there. The callback
     // fires once that process exits (success or failure).
-    exec(`spotdl "${spotifyUrl}"`, { cwd: tempDir }, (error) => {
+    // `exec`'s callback actually receives THREE things: an `error` (only set
+    // if the process couldn't start or exited with a non-zero code), plus
+    // `stdout` and `stderr` — everything the command printed. We were
+    // throwing stdout/stderr away entirely, which meant that if spotdl
+    // exited "successfully" (code 0) but still failed to produce a file —
+    // e.g. it couldn't find/download a match for the track — we had zero
+    // record of why. Logging both here means the next failure tells us
+    // something instead of just silently flipping to 'failed'.
+    exec(`spotdl "${spotifyUrl}"`, { cwd: tempDir }, (error, stdout, stderr) => {
         if (error) {
-            console.error(`[-] spotDL Error: ${error.message}`);
+            console.error(`[-] [Session ${sessionId}] spotDL Error: ${error.message}`);
+            if (stdout) console.error(`[-] [Session ${sessionId}] spotdl stdout:\n${stdout}`);
+            if (stderr) console.error(`[-] [Session ${sessionId}] spotdl stderr:\n${stderr}`);
             activeSessions[sessionId].status = 'failed';
             fs.rmSync(tempDir, { recursive: true, force: true });
             return;
@@ -98,6 +108,13 @@ app.get('/download', (req, res) => {
         const audioFile = files.find(f => f.endsWith('.mp3') || f.endsWith('.m4a') || f.endsWith('.ogg'));
 
         if (!audioFile) {
+            // spotdl exited with code 0 (no `error` above) but didn't leave
+            // behind a file we recognize — log everything we have so this
+            // is diagnosable instead of a silent 'failed' with no trace.
+            console.error(`[-] [Session ${sessionId}] spotdl exited cleanly but no audio file was found in ${tempDir}.`);
+            console.error(`[-] [Session ${sessionId}] Files present: ${files.length ? files.join(', ') : '(none)'}`);
+            if (stdout) console.error(`[-] [Session ${sessionId}] spotdl stdout:\n${stdout}`);
+            if (stderr) console.error(`[-] [Session ${sessionId}] spotdl stderr:\n${stderr}`);
             activeSessions[sessionId].status = 'failed';
             fs.rmSync(tempDir, { recursive: true, force: true });
             return;
