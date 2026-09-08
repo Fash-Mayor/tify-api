@@ -104,6 +104,14 @@ app.get('/download', (req, res) => {
       'spotdl',
       `"${spotifyUrl}"`,
       hasCookieFile ? `--cookie-file "${COOKIE_FILE_PATH}"` : null,
+      // By default spotdl processes multiple tracks (e.g. a playlist) in
+      // parallel worker threads, each one running its own yt-dlp + ffmpeg
+      // pair at the same time. On a memory-constrained host (Render's free
+      // tier gives us only 512MB total) that multiplies our peak memory use
+      // by however many tracks it's juggling at once. Forcing --threads 1
+      // makes it process one track fully before starting the next, trading
+      // some speed for a much lower, more predictable memory ceiling.
+      '--threads 1',
     ].filter(Boolean).join(' ');
 
     // `exec` runs a shell command — here, the actual `spotdl` CLI tool —
