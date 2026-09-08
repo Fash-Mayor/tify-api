@@ -112,6 +112,15 @@ app.get('/download', (req, res) => {
       // makes it process one track fully before starting the next, trading
       // some speed for a much lower, more predictable memory ceiling.
       '--threads 1',
+      // TEMPORARY DIAGNOSTIC FLAG: spotdl's default output collapses real
+      // failures down to a one-line summary like "AudioProviderError:
+      // YT-DLP download error - <url>" with no explanation of WHY. Bumping
+      // its log level to DEBUG makes it print yt-dlp's actual underlying
+      // error (rate limiting? region block? bad cookie format? something
+      // else?) so we can see the real cause instead of guessing. Once we
+      // know what we're dealing with, we can remove this — DEBUG output is
+      // noisy for normal operation.
+      '--log-level DEBUG',
     ].filter(Boolean).join(' ');
 
     // `exec` runs a shell command — here, the actual `spotdl` CLI tool —
