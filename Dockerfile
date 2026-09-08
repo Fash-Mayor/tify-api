@@ -41,6 +41,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # container's Python is ONLY ever used to run spotdl, nothing else.
 RUN pip3 install --no-cache-dir --break-system-packages spotdl
 
+# ---- 3b. Install Deno (spotdl needs it) ----
+# We found this the hard way: spotdl sources audio via YouTube, and YouTube
+# now requires solving a small JS challenge before it'll serve a download —
+# spotdl handles that itself, but only if the Deno JS runtime is available
+# on the machine. Without it, downloads fail with "AudioProviderError:
+# YT-DLP download error" (that's exactly what we saw in the Render logs).
+# `spotdl --download-deno` is spotdl's own built-in installer for this —
+# simpler and more likely to stay compatible than us installing Deno by hand.
+RUN spotdl --download-deno
+
 # ---- 4. App setup ----
 # Everything from here on happens inside /app in the container.
 WORKDIR /app
