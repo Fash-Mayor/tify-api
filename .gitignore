@@ -1,0 +1,9 @@
+# Dependencies (reinstalled from package-lock.json, no need to track them)
+node_modules
+
+# Per-download temp folders created at runtime — never meant to be committed
+temp_downloads
+
+# Secrets — API_KEY and friends live here locally; on Render they'll be set
+# via the dashboard's environment variables instead. Never commit this file.
+.env

@@ -1,0 +1,17 @@
+# Don't copy these into the Docker image when we `COPY . .`
+
+# Installed on the host (Windows) — would conflict with the Linux
+# node_modules we install fresh inside the container.
+node_modules
+
+# Leftover per-download temp folders from local testing — not part of
+# the app, and downloads never need to persist between deploys anyway.
+temp_downloads
+
+# Local secrets — we'll set API_KEY etc. via Render's dashboard instead,
+# never bake them into the image.
+.env
+
+# Git metadata isn't needed inside the running container.
+.git
+.gitignore
