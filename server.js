@@ -212,6 +212,10 @@ async function downloadAudio(sessionId, track, tempDir) {
     // use Node too — and we're ALREADY running inside Node! So we point it
     // at our own Node binary (process.execPath) and skip Deno entirely.
     '--js-runtimes', `node:${process.execPath}`,
+    // Use mobile/embedded player clients (visionos, ios, tv) which make far
+    // fewer webpage hits and are much less likely to trigger HTTP 429 on
+    // shared cloud datacenter IPs like Render.
+    '--extractor-args', 'youtube:player_client=visionos,ios,tv,web_embedded',
     // Don't nag about updates in our logs; the Docker build always
     // installs the latest release anyway.
     '--no-update',
@@ -221,16 +225,16 @@ async function downloadAudio(sessionId, track, tempDir) {
   ];
   if (ytDlpCookiePath) baseArgs.push('--cookies', ytDlpCookiePath);
 
-  // ATTEMPT 1 (only if we know the Spotify duration): look at the top 5
-  // YouTube results and take the first one whose length is within ±20s of
-  // the Spotify track. This is roughly the matching trick spotdl used, and
-  // it avoids grabbing e.g. a 10-minute "extended mix" or a 30s short.
+  // ATTEMPT 1 (only if we know the Spotify duration): look at the top 2
+  // YouTube results (down from 5 to avoid triggering YouTube HTTP 429 on
+  // shared Render datacenter IPs) and take the first one whose length is
+  // within ±25s of the Spotify track.
   if (track.durationMs) {
     const seconds = Math.round(track.durationMs / 1000);
     const exitCode = await runYtDlp(
       [
-        `ytsearch5:${query}`,
-        '--match-filter', `duration >= ${seconds - 20} & duration <= ${seconds + 20}`,
+        `ytsearch2:${query}`,
+        '--match-filter', `duration >= ${seconds - 25} & duration <= ${seconds + 25}`,
         // Stop after the first match. yt-dlp exits with code 101 when it
         // hits this limit — that's a success for us, not an error.
         '--max-downloads', '1',
